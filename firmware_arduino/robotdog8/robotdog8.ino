@@ -25,11 +25,18 @@
 //   lim <ch> <lo> <hi> set a servo's clamp range (deg)
 //   slew <deg/s>      max slew rate
 //   dump              print calibration + gait params + targets
+//   save              record CURRENT commanded angles as the stand pose -> NVS (persists)
+//   loadcal           reload the saved stand pose from NVS
+//   rstcal            reset centers to 90 deg (not saved until 'save')
 // ============================================================================
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
+#include <Preferences.h>
 
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+Preferences prefs;                 // NVS storage for the saved stand pose
+#define CAL_NS  "robotdog8"        // NVS namespace
+#define CAL_KEY "centers"         // blob of NSERVO floats (per-channel center deg)
 
 #define SERVOMIN   125     // PCA9685 tick at 0 deg   (user-validated)
 #define SERVOMAX   575     // PCA9685 tick at 180 deg (user-validated)
@@ -70,6 +77,32 @@ void writeServo(int ch, float deg) {
   deg = clampf(deg, cal[ch].lo, cal[ch].hi);
   int pulse = (int)(SERVOMIN + (SERVOMAX - SERVOMIN) * (deg / 180.0f));
   pwm.setPWM(ch, 0, pulse);
+}
+
+// Load saved stand-pose centers from NVS into cal[].center (no-op if none saved).
+bool loadCal() {
+  prefs.begin(CAL_NS, true);                 // read-only
+  size_t n = prefs.getBytesLength(CAL_KEY);
+  bool ok = (n == sizeof(float)*NSERVO);
+  if (ok) {
+    float buf[NSERVO];
+    prefs.getBytes(CAL_KEY, buf, sizeof(buf));
+    for (int i=0;i<NSERVO;i++) cal[i].center = buf[i];
+  }
+  prefs.end();
+  return ok;
+}
+
+// Capture the CURRENT commanded angles as the new stand-pose centers + persist.
+// NOTE: open-loop servos -> this records what was last COMMANDED (e.g. via `t`),
+// not where a relaxed leg was physically moved by hand. Jog with `t` first.
+void saveCal() {
+  for (int i=0;i<NSERVO;i++) cal[i].center = current[i];
+  float buf[NSERVO];
+  for (int i=0;i<NSERVO;i++) buf[i] = cal[i].center;
+  prefs.begin(CAL_NS, false);                // read-write
+  prefs.putBytes(CAL_KEY, buf, sizeof(buf));
+  prefs.end();
 }
 
 void centerAll() {
@@ -131,6 +164,9 @@ void handleLine(String s) {
   else if (s=="x") { walking=false; for(int i=0;i<NSERVO;i++) target[i]=current[i]; Serial.println(F("stop/hold")); }
   else if (s=="w") { relaxed=false; walking=true; gaitClock=0; Serial.println(F("walking")); }
   else if (s=="dump") { dump(); }
+  else if (s=="save") { saveCal(); Serial.print(F("saved stand pose to NVS:")); for(int i=0;i<NSERVO;i++) Serial.printf(" %s=%.0f", JNAME[i], cal[i].center); Serial.println(); }
+  else if (s=="loadcal") { if (loadCal()){ centerAll(); Serial.println(F("loaded saved stand pose")); } else Serial.println(F("no saved pose in NVS")); }
+  else if (s=="rstcal")  { for(int i=0;i<NSERVO;i++) cal[i].center=90.0f; Serial.println(F("centers reset to 90 (use 'save' to persist)")); }
   else if (s.startsWith("t ")||s.startsWith("j ")) {
     int ch,deg; if (sscanf(rest.c_str(), "%d %d", &ch,&deg)==2 && ch>=0&&ch<NSERVO){
       walking=false; relaxed=false; target[ch]=clampf(deg,cal[ch].lo,cal[ch].hi);
@@ -158,11 +194,22 @@ void setup() {
   pwm.setPWMFreq(SERVO_FREQ);
 
   for (int i=0;i<NSERVO;i++){ cal[i]={90.0f,15.0f,165.0f,+1}; current[i]=90.0f; target[i]=90.0f; }
+  // Right-side legs are MIRROR-MOUNTED (see robot/images): the FR & RR servos face
+  // opposite the left side, so the same angle rotates them the other way. Flip their
+  // gait direction so the trot is physically symmetric. (dir only affects gaitStep;
+  // c/s/t still write absolute angles, so centering stays symmetric at 90 deg.)
+  cal[2].dir = -1;  // FR_abd
+  cal[3].dir = -1;  // FR_knee
+  cal[6].dir = -1;  // RR_abd
+  cal[7].dir = -1;  // RR_knee
+  bool haveSaved = loadCal();   // override default 90 centers with saved stand pose
   delay(500);
   centerAll();
+  Serial.println(haveSaved ? F("loaded saved stand pose from NVS")
+                           : F("no saved stand pose - using 90 deg centers"));
   Serial.println();
   Serial.println(F("robotdog8 ready (8 servos, ch0-7 = FL/FR/RL/RR abd+knee)."));
-  Serial.println(F("cmds: c center | t <ch> <deg> | s stand | w walk | x stop | r relax | dump"));
+  Serial.println(F("cmds: c center | t <ch> <deg> | s stand | w walk | x stop | r relax | dump | save | loadcal | rstcal"));
 }
 
 void loop() {
