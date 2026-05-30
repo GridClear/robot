@@ -1,0 +1,32 @@
+{
+  "source": "Isaac Lab RSL-RL PPO, task Isaac-Velocity-Flat-RobotDog-v0, 1500 iters, GB10",
+  "checkpoint": "robot_dog_flat/2026-05-30_01-09-54/model_1499.pt",
+  "onnx": "policy_isaac.onnx",
+  "verified": {
+    "sim": "isaaclab",
+    "steps": 400, "num_envs": 64,
+    "cmd_vx": 0.170, "act_vx": 0.160, "track_err_mps": 0.039,
+    "mean_trunk_height_m": 0.111, "terminations": 0,
+    "note": "tracks commanded base velocity within 0.04 m/s, never fell"
+  },
+
+  "obs_dim": 48, "act_dim": 12,
+  "obs_layout": [
+    ["base_lin_vel", 3], ["base_ang_vel", 3], ["projected_gravity", 3],
+    ["velocity_cmd", 3], ["joint_pos_rel_default", 12], ["joint_vel", 12],
+    ["prev_action", 12]
+  ],
+  "obs_frame_note": "base_lin_vel/base_ang_vel are in the ROBOT BASE frame (not world). On hardware, get these from an IMU expressed in the base frame. projected_gravity = gravity unit vector rotated into the base frame.",
+  "empirical_normalization": false,
+
+  "action_is_position_delta": true,
+  "action_scale": 0.4,
+  "default_joint_pos_isaac_order": [0.0, 0.0, 0.0, 0.0, 0.7, 0.7, 0.7, 0.7, -1.4, -1.4, -1.4, -1.4],
+  "control_hz": 50,
+
+  "joint_order_isaac": ["FL_hip", "FR_hip", "RL_hip", "RR_hip", "FL_thigh", "FR_thigh", "RL_thigh", "RR_thigh", "FL_knee", "FR_knee", "RL_knee", "RR_knee"],
+  "joint_order_deploy": ["FL_hip", "FL_thigh", "FL_knee", "FR_hip", "FR_thigh", "FR_knee", "RL_hip", "RL_thigh", "RL_knee", "RR_hip", "RR_thigh", "RR_knee"],
+  "isaac_to_deploy_index": [0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11],
+  "deploy_to_isaac_index": [0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11],
+  "remap_note": "ONNX obs joint sub-vectors (joint_pos_rel, joint_vel, prev_action) must be supplied in joint_order_isaac; the 12 action outputs are also in joint_order_isaac. To send to the ESP32 (servo_map.json channel order = joint_order_deploy), reorder: deploy[k] = isaac[isaac_to_deploy_index[k]]. To build the obs joint sub-vectors from per-leg/servo-order state: isaac[k] = deploy[deploy_to_isaac_index[k]]."
+}

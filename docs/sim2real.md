@@ -51,6 +51,20 @@ python control/mock_esp32.py 8770 &                    # then stream to a fake E
 python control/runtime/policy_runner.py --robot 127.0.0.1 --port 8770
 ```
 
+## ⚠️ Joint-order remap (Isaac Lab policy → ESP32)
+
+The Isaac Lab policy was verified walking on the GB10 (tracks commanded velocity
+within 0.039 m/s, 0 falls over 400 steps × 64 envs). But Isaac orders the 12
+joints **by type** — `FL_hip, FR_hip, RL_hip, RR_hip, FL_thigh, …, FL_knee, …` —
+while our servo map / MJCF / ESP32 use **per-leg** order
+(`FL_hip, FL_thigh, FL_knee, FR_…`). The ONNX's obs joint sub-vectors and its 12
+action outputs are all in **Isaac order**, so deploying it to the ESP32 requires
+reordering, or the legs are scrambled. The exact index maps are in
+`policy/policy_isaac_meta.json` (`isaac_to_deploy_index` / `deploy_to_isaac_index`).
+Also note Isaac obs use **base-frame** base velocities (feed from an IMU). The
+MuJoCo-trained `policy.onnx` uses per-leg order; the Isaac `policy_isaac.onnx`
+uses type-grouped order — don't mix them up.
+
 ## Reality of transfer on hobby servos
 
 PCA9685 + cheap servos have backlash, latency, and no torque feedback. Mitigations

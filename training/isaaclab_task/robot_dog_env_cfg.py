@@ -10,6 +10,7 @@ from dataclasses import MISSING
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -30,7 +31,9 @@ class RobotDogSceneCfg(InteractiveSceneCfg):
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane",
                                  collision_group=-1)
     robot = ROBOT_DOG_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    light = sim_utils.DomeLightCfg(intensity=1000.0)
+    light = AssetBaseCfg(prim_path="/World/light",
+                         spawn=sim_utils.DomeLightCfg(intensity=1000.0,
+                                                      color=(0.9, 0.9, 0.9)))
 
 
 @configclass
