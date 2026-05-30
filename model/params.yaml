@@ -1,0 +1,84 @@
+# ============================================================================
+# Robot Dog — single source of truth for geometry, joints, and servo mapping.
+#
+# generate.py reads THIS file and emits:
+#   - robot_dog.urdf      (Isaac Lab / URDF importers)
+#   - robot_dog.xml       (MuJoCo MJCF)
+#   - servo_map.json      (consumed by firmware/config.h generation AND control runtime)
+#
+# All lengths in METERS, all masses in KILOGRAMS, all angles in RADIANS.
+# These are PLACEHOLDER dimensions for a small hobby quadruped — the real
+# geometry could NOT be recovered from RobotDogUpdt.f3d (Fusion binary B-Rep).
+# Replace dims/masses/servo ranges with measured values during bring-up.
+# ============================================================================
+
+robot_name: robot_dog
+
+# --- Trunk (body) ----------------------------------------------------------
+trunk:
+  size: [0.30, 0.12, 0.06]   # x(length) y(width) z(height)
+  mass: 1.2
+
+# --- Leg link geometry (one leg; replicated x4) ----------------------------
+# Chain per leg: trunk -> hip_abduction(x) -> hip_link
+#                      -> hip_flexion(y)   -> thigh
+#                      -> knee(y)          -> shank -> foot
+leg:
+  hip_link:   { length: 0.04, radius: 0.018, mass: 0.10 }   # abduction housing offset (along y)
+  thigh:      { length: 0.11, radius: 0.014, mass: 0.12 }   # hip_flexion -> knee
+  shank:      { length: 0.12, radius: 0.012, mass: 0.08 }   # knee -> foot
+  foot_radius: 0.016
+
+# --- Corner mount offsets from trunk center --------------------------------
+# x sign: front(+) / rear(-);  y sign: left(+) / right(-)
+# mirror flips the abduction direction so "outboard" is consistent L/R.
+corners:
+  FL: { xy: [ 0.12,  0.06], mirror: false }   # front-left
+  FR: { xy: [ 0.12, -0.06], mirror: true  }   # front-right
+  RL: { xy: [-0.12,  0.06], mirror: false }   # rear-left
+  RR: { xy: [-0.12, -0.06], mirror: true  }   # rear-right
+
+# --- Joint definitions (per joint TYPE) ------------------------------------
+# limits in radians; effort N*m; velocity rad/s. Order within a leg matters:
+# it defines the kinematic chain and the obs/action vector order per leg.
+joints:
+  hip:    { axis: [1, 0, 0], lower: -0.80, upper: 0.80, effort: 2.0, velocity: 8.0 }  # abduction
+  thigh:  { axis: [0, 1, 0], lower: -1.60, upper: 1.60, effort: 2.0, velocity: 8.0 }  # hip flexion
+  knee:   { axis: [0, 1, 0], lower: -2.60, upper: -0.20, effort: 2.0, velocity: 8.0 } # knee
+
+# Nominal standing pose (radians), per joint type. Applied to every leg
+# (knee/thigh signs adjusted per side by the generator via mirror where needed).
+default_pose:
+  hip: 0.0
+  thigh: 0.7
+  knee: -1.4
+
+# --- Servo / PCA9685 mapping -----------------------------------------------
+# Joints are assigned PCA9685 channels in this leg order, leg-by-leg:
+#   FL: 0,1,2   FR: 3,4,5   RL: 6,7,8   RR: 9,10,11   (12-15 spare)
+# For each servo:
+#   pwm_min/pwm_max : microsecond pulse at angle_min/angle_max mechanical stops
+#   angle_min/max   : servo travel in radians corresponding to pwm_min/max
+#   direction       : +1 or -1, flips joint-angle sense to servo-angle sense
+#   zero_offset     : radians added to joint target so q=0 maps to mechanical mid
+# These default to a generic 270-deg digital servo; calibrate per joint on bench.
+servo_defaults:
+  pwm_min: 500     # microseconds
+  pwm_max: 2500    # microseconds
+  angle_min: -2.356   # -135 deg  (servo travel, centered at 0)
+  angle_max:  2.356   # +135 deg
+  direction: 1
+  zero_offset: 0.0
+  freq_hz: 50      # PCA9685 output frequency for analog/most digital servos
+
+# Per-joint-TYPE overrides applied on top of servo_defaults. zero_offset shifts
+# the joint's working band into the servo's centered travel so q=default maps
+# near the servo midpoint. The knee operates around -1.4 rad, so it needs an
+# offset to be physically reachable by a centered servo horn.
+servo_overrides:
+  hip:   { zero_offset: 0.0,  direction: 1 }
+  thigh: { zero_offset: 0.0,  direction: 1 }
+  knee:  { zero_offset: 1.4,  direction: 1 }   # recenters [-2.6,-0.2] -> [-1.2,1.2]
+
+channel_order: [FL, FR, RL, RR]   # leg order for channel assignment
+joint_order:   [hip, thigh, knee] # within each leg

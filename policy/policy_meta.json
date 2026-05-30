@@ -1,0 +1,65 @@
+{
+  "obs_dim": 48,
+  "act_dim": 12,
+  "obs_layout": [
+    [
+      "base_lin_vel",
+      3
+    ],
+    [
+      "base_ang_vel",
+      3
+    ],
+    [
+      "projected_gravity",
+      3
+    ],
+    [
+      "velocity_cmd",
+      3
+    ],
+    [
+      "joint_pos_rel_default",
+      12
+    ],
+    [
+      "joint_vel",
+      12
+    ],
+    [
+      "prev_action",
+      12
+    ]
+  ],
+  "joint_names": [
+    "FL_hip",
+    "FL_thigh",
+    "FL_knee",
+    "FR_hip",
+    "FR_thigh",
+    "FR_knee",
+    "RL_hip",
+    "RL_thigh",
+    "RL_knee",
+    "RR_hip",
+    "RR_thigh",
+    "RR_knee"
+  ],
+  "default_joint_pos": [
+    0.0,
+    0.7,
+    -1.4,
+    0.0,
+    0.7,
+    -1.4,
+    0.0,
+    0.7,
+    -1.4,
+    0.0,
+    0.7,
+    -1.4
+  ],
+  "action_scale": 0.4,
+  "action_is_position_delta": true,
+  "control_hz": 50
+}
