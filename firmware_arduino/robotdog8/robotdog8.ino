@@ -60,11 +60,11 @@ bool  walking = false;
 bool  relaxed = false;
 
 // gait params (live-tunable)
-float gAmpAbd  = 18.0f;   // abduction swing (deg)
-float gAmpKnee = 25.0f;   // knee swing (deg)
-float gFreq    = 1.2f;    // Hz
+float gAmpAbd  = 28.0f;   // abduction swing (deg) — gentle wide-stride default
+float gAmpKnee = 30.0f;   // knee swing (deg) — gentle wide-stride default
+float gFreq    = 0.6f;    // Hz — slow, steady cadence
 float gPhase   = 90.0f;   // abduction->knee phase (deg)
-float gSlew    = 240.0f;  // deg/s
+float gSlew    = 150.0f;  // deg/s — gentler slew to match the slower gait
 float gaitClock = 0.0f;
 
 // trot: diagonal pairs FL+RR and FR+RL in antiphase
@@ -202,6 +202,9 @@ void setup() {
   cal[3].dir = -1;  // FR_knee
   cal[6].dir = -1;  // RR_abd
   cal[7].dir = -1;  // RR_knee
+  // RR_knee sits high (saved center ~140) and the wide knee swing (kamp 30)
+  // reaches ~170, so give it headroom above the default 165 clamp.
+  cal[7].hi = 180.0f;
   bool haveSaved = loadCal();   // override default 90 centers with saved stand pose
   delay(500);
   centerAll();
