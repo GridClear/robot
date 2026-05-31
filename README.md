@@ -20,6 +20,60 @@ that signals an external service to take a photo on the robot's behalf.
 | `policy/` | Exported `policy.onnx` + `policy_meta.json` (obs/action contract). |
 | `docs/` | `command_protocol.md`, `architecture.md`, `sim2real.md`, `isaac_lab_gb10.md`. |
 
+## Circuit (wiring)
+
+8-DOF build: an **ESP32** drives **8 servos** through a **PCA9685** over I²C. Servos
+are powered from a dedicated BEC (never from the ESP32). Right-side legs (FR, RR) are
+mirror-mounted — handled in `servo_map.json` (`direction = -1`), not in wiring.
+
+```mermaid
+flowchart LR
+  BAT["Battery + switch + fuse"] --> BEC["BEC/UBEC 5-6V, min 5A"]
+  BEC --- CAP["470-1000uF cap across V+/GND"]
+  ESP["ESP32 dev board<br/>powered via USB or 5V/VIN"]
+  PCA["PCA9685 16-ch PWM<br/>I2C addr 0x40, 50 Hz"]
+  ESP -- "GPIO21 SDA" --> PCA
+  ESP -- "GPIO22 SCL" --> PCA
+  ESP -- "3V3 to VCC logic" --> PCA
+  BEC -- "V+ servo rail" --> PCA
+  PCA -- ch0 --> A0["FL_abd"]
+  PCA -- ch1 --> A1["FL_knee"]
+  PCA -- ch2 --> A2["FR_abd (mirror)"]
+  PCA -- ch3 --> A3["FR_knee (mirror)"]
+  PCA -- ch4 --> A4["RL_abd"]
+  PCA -- ch5 --> A5["RL_knee"]
+  PCA -- ch6 --> A6["RR_abd (mirror)"]
+  PCA -- ch7 --> A7["RR_knee (mirror)"]
+  ESP -. "common GND" .-> GND["Star ground:<br/>battery = BEC = PCA9685 = ESP32"]
+  BEC -. "common GND" .-> GND
+  PCA -. "common GND" .-> GND
+```
+
+## Architecture (control + data flow)
+
+The policy/gait runs on a **companion computer (DGX Spark)**, not the ESP32. Commands
+go over **WiFi** to the ESP32; for scan runs the DGX also pulls photos from a phone
+(IP Webcam) into `gaussian_splatting_photos/run_N/`.
+
+```mermaid
+flowchart TB
+  subgraph DGX["DGX Spark (GB10) - companion computer"]
+    TRAIN["Isaac Lab training"] -->|exports| ONNX["policy_isaac.onnx"]
+    ONNX --> PR["policy_runner.py<br/>ONNX inference / gait"]
+    RC["robotctl.py (CLI)"]
+    CC["capture_coordinator.py<br/>dead-reckon ~1cm trigger"]
+    CC -->|writes| GS[("gaussian_splatting_photos/<br/>run_N : jpg + manifest")]
+  end
+  ESP["ESP32 firmware<br/>HTTP /cmd, WS /ws<br/>mDNS robotdog.local"]
+  PCA2["PCA9685"] --> SERVOS["8 servos<br/>4 legs x abd+knee"]
+  PHONE["Phone on robot<br/>IP Webcam :8080<br/>+ WiFi hotspot AP"]
+  PR -->|"set_joints/gait over WiFi"| ESP
+  RC -->|"commands over WiFi"| ESP
+  ESP -->|"telemetry /state"| PR
+  ESP --> PCA2
+  CC -->|"GET /shot.jpg over WiFi"| PHONE
+```
+
 ## Quickstart (no hardware needed)
 
 ```bash
