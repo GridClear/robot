@@ -14,9 +14,9 @@ TOL = 1e-6
 
 def main() -> int:
     cals = load_servo_map()
-    assert len(cals) == 12, f"expected 12 joints, got {len(cals)}"
+    assert len(cals) == 8, f"expected 8 joints, got {len(cals)}"
     channels = sorted(c.channel for c in cals)
-    assert channels == list(range(12)), f"channels must be 0..11, got {channels}"
+    assert channels == list(range(8)), f"channels must be 0..7, got {channels}"
 
     failures = 0
     for c in cals:
@@ -41,7 +41,7 @@ def main() -> int:
     if failures:
         print(f"\n{failures} FAILURES")
         return 1
-    print(f"OK: 12 joints, round-trip < {TOL}, clamping holds, channels 0-11 unique")
+    print(f"OK: 8 joints, round-trip < {TOL}, clamping holds, channels 0-7 unique")
     return 0
 
 

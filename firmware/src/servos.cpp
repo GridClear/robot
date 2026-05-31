@@ -88,24 +88,25 @@ void setGait(const char* name, float speed, const float dir[3]) {
 }
 bool gaitActive() { return strcmp(gaitName, "walk") == 0 || strcmp(gaitName, "trot") == 0; }
 
-// joint type index within a leg: SERVOS are ordered FL{hip,thigh,knee} FR... etc.
+// This robot is 8-DOF: 2 joints per leg (abduction + knee), NOT 3. SERVOS order:
+//   0:FL_abd 1:FL_knee  2:FR_abd 3:FR_knee  4:RL_abd 5:RL_knee  6:RR_abd 7:RR_knee
+// Gait ported from the tuned robotdog8.ino: sinusoidal abduction + a 90deg
+// phase-shifted sinusoidal knee, trot diagonal phasing. Right-side mirroring is
+// applied downstream in angleToTick (s.direction), so offsets here are symmetric
+// across legs (same convention as the policy set_joints stream). gaitSpeed only
+// gates walking; cadence/amplitude come from the tuned config.h values.
 void gaitStep(float dt) {
   if (!gaitActive() || gaitSpeed <= 0.0f) return;
-  const float stepFreq = 1.5f + 1.5f * gaitSpeed;     // Hz
-  const float amp = 0.35f * gaitSpeed;                // rad swing
-  gaitClock += dt * stepFreq;
-  // trot: diagonal pairs (FL+RR) and (FR+RL) in antiphase.
-  // leg order in SERVOS: 0:FL 1:FR 2:RL 3:RR (each *3 joints)
-  const float legPhase[4] = {0.0f, PI, PI, 0.0f};     // FL, FR, RL, RR
+  gaitClock += dt;
+  const float legPhase[4] = {0.0f, PI, PI, 0.0f};     // FL, FR, RL, RR (trot)
   float fwd = gaitDir[0] >= 0 ? 1.0f : -1.0f;
   for (int leg = 0; leg < 4; leg++) {
-    float ph = 2 * PI * gaitClock + legPhase[leg];
-    float lift = max(0.0f, sinf(ph));                 // swing = lift foot
-    float swing = cosf(ph) * fwd;                     // fore/aft
-    int base = leg * 3;                               // hip, thigh, knee
-    target[base + 0] = clampq(base + 0, 0.0f);                              // hip (abduction)
-    target[base + 1] = clampq(base + 1, SERVOS[base + 1].default_q + amp * swing);     // thigh
-    target[base + 2] = clampq(base + 2, SERVOS[base + 2].default_q - amp * lift * 1.4f); // knee tuck on swing
+    float ph = legPhase[leg] + 2.0f * PI * GAIT_FREQ_HZ * gaitClock;
+    float abdOff  = GAIT_AMP_ABD  * sinf(ph) * fwd;
+    float kneeOff = GAIT_AMP_KNEE * sinf(ph + GAIT_PHASE_RAD);
+    int a = leg * 2, k = leg * 2 + 1;                 // abduction, knee
+    target[a] = clampq(a, SERVOS[a].default_q + abdOff);
+    target[k] = clampq(k, SERVOS[k].default_q + kneeOff);
   }
 }
 

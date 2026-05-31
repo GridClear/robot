@@ -14,7 +14,7 @@ import mujoco
 import numpy as np
 
 XML = os.path.join(os.path.dirname(__file__), "..", "model", "robot_dog.xml")
-DEFAULT = np.array([0.0, 0.7, -1.4] * 4, dtype=np.float32)
+DEFAULT = np.array([0.45, 0.70] * 4, dtype=np.float32)   # 8-DOF: [abd, knee] x4
 LEG_PHASE = np.array([0.0, np.pi, np.pi, 0.0])   # FL, FR, RL, RR (trot diagonals)
 
 
@@ -26,16 +26,16 @@ def trot_targets(t, speed=0.6):
         ph = 2 * np.pi * step_freq * t + LEG_PHASE[leg]
         lift = max(0.0, np.sin(ph))
         swing = np.cos(ph)
-        b = leg * 3
-        q[b + 1] = DEFAULT[b + 1] + amp * swing          # thigh
-        q[b + 2] = DEFAULT[b + 2] - amp * lift * 1.4      # knee tuck during swing
+        b = leg * 2
+        q[b + 0] = DEFAULT[b + 0] + amp * lift            # abduction lifts the leg for clearance
+        q[b + 1] = DEFAULT[b + 1] + amp * swing * 1.4     # knee swings the foot fore-aft
     return q
 
 
 def run(seconds=6.0, speed=0.6, render_path=None):
     m = mujoco.MjModel.from_xml_path(XML)
     d = mujoco.MjData(m)
-    d.qpos[7:19] = DEFAULT
+    d.qpos[7:7 + len(DEFAULT)] = DEFAULT
     d.ctrl[:] = DEFAULT
     mujoco.mj_forward(m, d)
     lo, hi = m.jnt_range[1:13, 0], m.jnt_range[1:13, 1]

@@ -44,7 +44,7 @@
       "pwm_max": 2500,
       "angle_min": -2.356,
       "angle_max": 2.356,
-      "direction": 1,
+      "direction": -1,
       "zero_offset": 0.0
     },
     {
@@ -59,8 +59,8 @@
       "pwm_max": 2500,
       "angle_min": -2.356,
       "angle_max": 2.356,
-      "direction": 1,
-      "zero_offset": 0.0
+      "direction": -1,
+      "zero_offset": -1.4
     },
     {
       "name": "RL_abd",
@@ -104,7 +104,7 @@
       "pwm_max": 2500,
       "angle_min": -2.356,
       "angle_max": 2.356,
-      "direction": 1,
+      "direction": -1,
       "zero_offset": 0.0
     },
     {
@@ -119,8 +119,8 @@
       "pwm_max": 2500,
       "angle_min": -2.356,
       "angle_max": 2.356,
-      "direction": 1,
-      "zero_offset": 0.0
+      "direction": -1,
+      "zero_offset": -1.4
     }
   ]
 }

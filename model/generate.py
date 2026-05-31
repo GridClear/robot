@@ -219,16 +219,36 @@ def build_servo_map(p):
     entries = []
     ch = 0
     for prefix in p["channel_order"]:
+        # Right-side legs are mirror-mounted, so flip the servo direction (dir=-1).
+        # The firmware applies dir to the WHOLE angle (sa = dir*(q+zero)), so for joints
+        # whose axis is NOT flipped by the mirror, dir=-1 alone would also flip the
+        # NEUTRAL pose. Compensate per joint:
+        #   * lateral/abduction (x-axis, flipped by the URDF mirror): dir=-1, zero=0 ->
+        #     the neutral mirrors correctly (both legs splay outward).
+        #   * sagittal/knee (y-axis, NOT mirrored): dir=-1 + zero=-2*default -> the
+        #     neutral stays the SAME servo angle as the left side (both bend the same
+        #     way), while only the gait swing mirrors.
+        mirror = p["corners"][prefix].get("mirror", False)
         for jt in p["joint_order"]:
             ov = overrides.get(jt, {})
+            base_dir = ov.get("direction", sd["direction"])
+            base_zero = ov.get("zero_offset", sd["zero_offset"])
+            default_q = p["default_pose"][jt]
+            if mirror:
+                direction = -base_dir
+                is_lateral = jdefs[jt]["axis"][0] != 0      # abduction is the mirrored axis
+                zero_offset = base_zero if is_lateral else -(2.0 * default_q + base_zero)
+            else:
+                direction = base_dir
+                zero_offset = base_zero
             entries.append({
                 "name": jname(prefix, jt), "channel": ch, "leg": prefix, "joint_type": jt,
                 "lower": jdefs[jt]["lower"], "upper": jdefs[jt]["upper"],
-                "default": p["default_pose"][jt],
+                "default": default_q,
                 "pwm_min": sd["pwm_min"], "pwm_max": sd["pwm_max"],
                 "angle_min": sd["angle_min"], "angle_max": sd["angle_max"],
-                "direction": ov.get("direction", sd["direction"]),
-                "zero_offset": ov.get("zero_offset", sd["zero_offset"]),
+                "direction": direction,
+                "zero_offset": zero_offset,
             })
             ch += 1
     return {"freq_hz": sd["freq_hz"], "n_joints": len(entries), "joints": entries}

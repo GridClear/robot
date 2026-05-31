@@ -3,8 +3,11 @@
 Built on Isaac Lab's ManagerBasedRLEnv. Obs/action layout intentionally matches
 training/mujoco_fallback/gym_env.py and policy_meta.json:
   obs  = base_lin_vel(3) + base_ang_vel(3) + projected_gravity(3) + cmd(3)
-         + joint_pos_rel(12) + joint_vel(12) + prev_action(12)  = 48
-  act  = 12 joint position targets (scaled deltas around default pose)
+         + joint_pos_rel(8) + joint_vel(8) + prev_action(8)  = 36
+  act  = 8 joint position targets (scaled deltas around default pose)
+  8-DOF: 4 legs x (abduction + knee). Heavy domain randomization + pushes make
+  the policy auto-balance and work across conditions; omnidirectional velocity
+  commands let it change direction on demand.
 """
 from dataclasses import MISSING
 
@@ -75,19 +78,19 @@ class ObservationsCfg:
 
 @configclass
 class EventCfg:
-    # domain randomization — essential for sim-to-real on hobby servos
+    # domain randomization — heavy, so the policy auto-balances and works across conditions
     physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material, mode="startup",
         params={"asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-                "static_friction_range": (0.6, 1.2), "dynamic_friction_range": (0.4, 1.0),
-                "restitution_range": (0.0, 0.1), "num_buckets": 64})
+                "static_friction_range": (0.4, 1.4), "dynamic_friction_range": (0.3, 1.2),
+                "restitution_range": (0.0, 0.2), "num_buckets": 64})
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass, mode="startup",
         params={"asset_cfg": SceneEntityCfg("robot", body_names="base_link"),
-                "mass_distribution_params": (-0.2, 0.3), "operation": "add"})
+                "mass_distribution_params": (-0.3, 0.5), "operation": "add"})
     push_robot = EventTerm(
-        func=mdp.push_by_setting_velocity, mode="interval", interval_range_s=(8.0, 12.0),
-        params={"velocity_range": {"x": (-0.4, 0.4), "y": (-0.4, 0.4)}})
+        func=mdp.push_by_setting_velocity, mode="interval", interval_range_s=(4.0, 8.0),
+        params={"velocity_range": {"x": (-0.6, 0.6), "y": (-0.6, 0.6)}})
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform, mode="reset",
         params={"pose_range": {"x": (-0.3, 0.3), "y": (-0.3, 0.3), "yaw": (-3.14, 3.14)},

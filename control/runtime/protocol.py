@@ -12,10 +12,10 @@ _ids = itertools.count(1)
 
 # Canonical joint order (matches model/servo_map.json channel order)
 JOINT_NAMES = [
-    "FL_hip", "FL_thigh", "FL_knee",
-    "FR_hip", "FR_thigh", "FR_knee",
-    "RL_hip", "RL_thigh", "RL_knee",
-    "RR_hip", "RR_thigh", "RR_knee",
+    "FL_abd", "FL_knee",
+    "FR_abd", "FR_knee",
+    "RL_abd", "RL_knee",
+    "RR_abd", "RR_knee",
 ]
 
 
@@ -31,7 +31,7 @@ def gait(name: str, speed: float = 0.5, dir=(1.0, 0.0, 0.0)) -> dict:
     return _envelope("gait", {"name": name, "speed": float(speed), "dir": [float(x) for x in dir]})
 def set_joints(q) -> dict:
     q = list(q)
-    assert len(q) == 12, "set_joints needs 12 angles"
+    assert len(q) == 8, "set_joints needs 8 angles"
     return _envelope("set_joints", {"q": [float(x) for x in q]})
 def set_joint(name: str, angle: float) -> dict:
     return _envelope("set_joint", {"name": name, "angle": float(angle)})

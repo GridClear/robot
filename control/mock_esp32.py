@@ -40,7 +40,7 @@ def apply(cmd: dict) -> dict:
             STATE["mode"] = f"gait:{args.get('name', 'idle')}"
     elif c == "set_joints" and not STATE["estop"]:
         q = args.get("q", [])
-        if len(q) == 12:
+        if len(q) == 8:
             STATE["q"] = [cal.clamp(v) for cal, v in zip(CALS, q)]
             STATE["mode"] = "joints"
     elif c == "set_joint" and not STATE["estop"]:

@@ -58,6 +58,11 @@ Leg order **FL, FR, RL, RR**; each leg = abduction then knee.
 - **abduction** = hip joint that swings the leg sideways (in/out from the body).
 - **knee** = lower-leg joint that extends/tucks the foot.
 
+> **Right side is mirror-mounted.** The FR (ch2,3) and RR (ch6,7) servos face
+> opposite the left side, so the firmware flips their **gait direction** (`dir=-1`)
+> so the trot is physically symmetric. Left side (FL ch0,1; RL ch4,5) is `dir=+1`.
+> This only affects the gait — `c`/`s`/`t` still command absolute angles.
+
 ## Servo calibration
 
 - 180° servos, **PCA9685 ticks 125 → 575** map to **0° → 180°** at 50 Hz
@@ -70,8 +75,52 @@ Leg order **FL, FR, RL, RR**; each leg = abduction then knee.
 
 ## Connect to the DGX & control
 
-The ESP32 is on the DGX at **`/dev/ttyUSB0`** (115200 baud). Flash + drive it with
-arduino-cli on the DGX:
+> **Two firmwares, two command paths.** The legacy Arduino sketch
+> (`firmware_arduino/robotdog8/robotdog8.ino`) is **serial-only** (USB line protocol).
+> The PlatformIO build (`firmware/`) is **WiFi/BLE-native** — its `main.cpp` has no
+> serial command parser, so once it is flashed, commands arrive over the network, not
+> USB. To command over WiFi, flash `firmware/` (below).
+
+### Commanding over WiFi (no USB)
+
+1. Set the lab `WIFI_SSID`/`WIFI_PASS` in `firmware/src/config.h`, then flash the
+   PlatformIO firmware:
+   ```bash
+   cd firmware && pio run -t upload     # then: pio device monitor  (prints the IP)
+   ```
+2. On boot the ESP32 joins the lab network and prints its address, e.g.
+   `[wifi] STA '<ssid>' -> http://10.10.52.30/  (or http://robotdog.local/)`.
+   It also advertises **mDNS** (`robotdog.local`) and always keeps a fallback AP
+   (`robotdog`/`walkies123` at `192.168.4.1`).
+3. Drive it from anywhere on the same LAN (the DGX, your laptop) — host defaults to
+   `robotdog.local`; override with `--host <ip>` or `ROBOTDOG_HOST`:
+   ```bash
+   robotctl stand                       # WiFi HTTP POST /cmd  (default transport)
+   robotctl walk --speed 0.5            # one-shot gait command
+   robotctl --ws walk                   # WiFi WebSocket
+   python control/runtime/policy_runner.py --robot --secs 60   # stream policy over WiFi
+   ```
+   If `robotdog.local` doesn't resolve (some corporate WiFi blocks mDNS/multicast),
+   use the printed IP: `ROBOTDOG_HOST=10.10.52.30 robotctl stand`.
+
+### Running untethered (no USB to the DGX)
+
+Once flashed, the ESP32 needs the DGX only over **WiFi** — the USB-serial link does nothing
+for operation (this firmware has no serial command parser; control is HTTP/WS/BLE). You can
+unplug it from the DGX **as long as you power the board another way**:
+- a **5 V USB power bank / charger** into the ESP32 USB port — use ≥1 A; WiFi current spikes
+  can brown out a weak port and cause a boot loop, or
+- the servo **BEC 5 V → ESP32 `5V`/`VIN`** pin (ground already common per the wiring above) —
+  the clean "robot fully untethered" setup.
+
+The DGX still sends commands and stores photos, so keep the phone hotspot up and the DGX on
+it. USB is only needed again to **re-flash**. On power-up the ESP32 re-joins WiFi on its own;
+reach it at `robotdog.local`.
+
+### Legacy: commanding over USB serial
+
+The Arduino-sketch robot is on the DGX at **`/dev/ttyUSB0`** (115200 baud). Flash +
+drive it with arduino-cli on the DGX:
 
 ```bash
 arduino-cli compile --fqbn esp32:esp32:esp32 robotdog8
@@ -103,6 +152,43 @@ abduction and knee servos follow phase-offset sinusoids (`amp`, `kamp`, `phase`,
 `freq`) so the gait can be tuned empirically to produce forward motion — abduction
 lifts/places the leg while the knee provides reach/propulsion. Start low
 (`amp 12`, `kamp 18`, `freq 1.0`) and increase once motion looks coordinated.
+
+## Photo capture for gaussian splatting
+
+During a "scan run" the robot walks while a **phone mounted on it** takes a photo
+roughly every **1 cm** of travel; the images are stored on the **DGX** under
+`gaussian_splatting_photos/run_N/` for later 3D reconstruction.
+
+```
+ESP32 (WiFi STA, joins lab net) ◄── gait cmds ── DGX: policy_runner.py --capture
+                                                       │  integrates v·dt → distance
+                                                       │  every ~1 cm:
+phone (IP Webcam, same WiFi) ── GET /photo.jpg ──►  capture_coordinator.py
+                                                       │  writes file + manifest
+                                                       ▼
+                            ~/robotdog/gaussian_splatting_photos/run_N/NNNN.jpg
+```
+
+- **No odometry.** The robot has no IMU/encoders, so 1 cm is **dead-reckoned on the
+  DGX** from the commanded forward velocity (`|vx| · max_speed_mps · dt`), *not
+  measured*. `max_speed_mps` is an open-loop scale you must calibrate (walk a known
+  time, measure travel, set `max_speed_mps = measured_m / (vx · secs)`).
+- **Phone** runs Android *IP Webcam* (same app as `control/runtime/vision_eval.py`);
+  the DGX **pulls** stills at `http://<phone-ip>:8080/photo.jpg`. No phone app to build.
+- **Storage**: raw JPEG bytes saved as `NNNN.jpg` plus a per-run `manifest.json`
+  (seq, timestamp, estimated distance, velocity cmd) and `run_meta.json`. `run_N`
+  auto-increments. Root = `$GS_PHOTOS_ROOT` or `~/robotdog/gaussian_splatting_photos`.
+- All three devices (ESP32, phone, DGX) must share one WiFi LAN. Set the lab
+  `WIFI_SSID`/`WIFI_PASS` in `firmware/src/config.h` so the ESP32 joins it (STA mode).
+
+The phone URL defaults to `http://10.197.152.200:8080/shot.jpg` (the phone's address on
+the POCO M2 Pro hotspot; override with `--phone-url` or `$PHONE_URL`). Run it from the DGX:
+```bash
+python control/runtime/policy_runner.py --robot <esp32-ip> --transport wifi \
+  --cmd 0.6,0,0 --secs 60 --capture
+```
+Or, for a manually-driven gait (`robotctl … gait walk`), the standalone
+`python control/runtime/capture_coordinator.py --speed 0.5 --duration 60`.
 
 ## Safety / bring-up order
 

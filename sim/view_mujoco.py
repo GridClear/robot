@@ -71,8 +71,8 @@ def check():
     mujoco.mj_resetData(m, d)
     for i in range(m.nu):
         nm = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_ACTUATOR, i)
-        # set ctrl to the default pose for each joint type
-        for jt, val in (("hip", 0.0), ("thigh", 0.7), ("knee", -1.4)):
+        # set ctrl to the default pose for each joint type (8-DOF sprawled stance)
+        for jt, val in (("abd", 0.45), ("knee", 0.7)):
             if nm.endswith(f"_{jt}_act"):
                 d.ctrl[i] = val
     for _ in range(800):
@@ -92,7 +92,7 @@ def render(path):
     d = mujoco.MjData(m)
     for i in range(m.nu):
         nm = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_ACTUATOR, i)
-        for jt, val in (("thigh", 0.7), ("knee", -1.4)):
+        for jt, val in (("abd", 0.45), ("knee", 0.7)):
             if nm.endswith(f"_{jt}_act"):
                 d.ctrl[i] = val
     for _ in range(500):
@@ -122,10 +122,10 @@ def view():
             # gentle sinusoidal jiggle so you can see all joints move
             for i in range(m.nu):
                 nm = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_ACTUATOR, i)
-                if nm.endswith("_thigh_act"):
-                    d.ctrl[i] = 0.7 + 0.3 * np.sin(2 * t)
+                if nm.endswith("_abd_act"):
+                    d.ctrl[i] = 0.45 + 0.3 * np.sin(2 * t)
                 elif nm.endswith("_knee_act"):
-                    d.ctrl[i] = -1.4 + 0.3 * np.sin(2 * t)
+                    d.ctrl[i] = 0.7 + 0.3 * np.sin(2 * t)
             mujoco.mj_step(m, d)
             v.sync()
 

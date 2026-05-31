@@ -6,9 +6,10 @@ robot, or a host during bring-up): build the observation -> ONNX inference ->
 
 Backends:
   --sim                 drive the MuJoCo model (closed-loop validation here)
-  --robot HOST          stream to a real/mock ESP32
-     --transport serial   real robotdog8.ino over /dev/ttyUSB0 (DEFAULT, line proto)
-     --transport wifi     mock_esp32 / WiFi WS JSON (set_joints)
+  --robot [HOST]        stream to a real/mock ESP32 (bare --robot -> robotdog.local)
+     --transport wifi     WiFi WS JSON set_joints (DEFAULT; firmware/ PlatformIO build
+                          or mock_esp32). No USB — commands go over the network.
+     --transport serial   legacy robotdog8.ino over /dev/ttyUSB0 (line proto)
 
 Observation order MUST match the policy metadata (policy_isaac_meta.json for the
 8-DOF Isaac policy; policy_meta.json for the older fallback). The Isaac ONNX
@@ -168,7 +169,28 @@ def _build_obs_isaac(mf: MetaFields, cmd, prev_isaac, lin=None, ang=None, grav=N
     return np.concatenate([parts[name] for name, _ in mf.obs_layout]).astype(np.float32)
 
 
-def run_robot_serial(mf: MetaFields, policy, port, hz, secs, cmd_vec, dry_run, on_exit="x"):
+def _start_capture(capture, cmd_vec, max_speed_mps_default=None):
+    """Build a CaptureRun + DistanceTrigger from a capture-config dict, or None.
+
+    Returns (run, trigger, speed_mps). The robot has no odometry, so distance is
+    dead-reckoned: speed_mps = |commanded vx| * max_speed_mps (see capture_coordinator).
+    """
+    if not capture:
+        return None, None, 0.0
+    from capture_coordinator import CaptureRun, DistanceTrigger
+    step_m = capture["step_m"]
+    max_speed_mps = capture["max_speed_mps"]
+    cmd_list = [float(x) for x in cmd_vec]
+    run = CaptureRun(capture["phone_url"], capture["root"], run_meta={
+        "step_m": step_m, "max_speed_mps": max_speed_mps, "mode": "policy_runner",
+        "velocity_cmd": cmd_list})
+    trig = DistanceTrigger(step_m, lambda total: run.submit(total, cmd_list))
+    speed_mps = abs(cmd_list[0]) * max_speed_mps
+    return run, trig, speed_mps
+
+
+def run_robot_serial(mf: MetaFields, policy, port, hz, secs, cmd_vec, dry_run,
+                     on_exit="x", capture=None):
     """Stream the policy to the real robotdog8.ino over serial (line protocol)."""
     import sys
     import time
@@ -198,19 +220,24 @@ def run_robot_serial(mf: MetaFields, policy, port, hz, secs, cmd_vec, dry_run, o
             print(f"[dry-run] frame {i}: {set8(one_frame())}")
         return
 
+    run, trig, speed_mps = _start_capture(capture, cmd_vec)
     with SerialLink(port) as link:
         link.send_line("x")                               # stop any gait, hold
         time.sleep(0.2)
         t0 = time.time()
         for _ in range(nsteps):
             link.send_line(set8(one_frame()))
+            if trig:
+                trig.update(speed_mps * dt)               # dead-reckon -> capture @ ~1cm
             time.sleep(dt)
         link.send_line(on_exit)                           # "x" hold (safe) or "r" relax
         print(f"[robot] streamed {secs:.1f}s of policy targets "
               f"({nsteps} frames @ {hz}Hz); sent '{on_exit}' on exit")
+    if run:
+        run.close()
 
 
-async def run_robot_wifi(mf: MetaFields, policy, host, port, hz, secs, cmd_vec):
+async def run_robot_wifi(mf: MetaFields, policy, host, port, hz, secs, cmd_vec, capture=None):
     """Stream set_joints to a mock/WiFi ESP32 over WebSocket (JSON)."""
     import sys
     sys.path.insert(0, HERE)
@@ -221,15 +248,22 @@ async def run_robot_wifi(mf: MetaFields, policy, host, port, hz, secs, cmd_vec):
     prev = np.zeros(n, dtype=np.float32)
     cmd = np.array(cmd_vec, dtype=np.float32)
     dt = 1.0 / hz
-    async with WifiWs(host, port) as ws:
-        for _ in range(int(secs * hz)):
-            obs = _build_obs_isaac(mf, cmd, prev)
-            a = np.clip(policy.act(obs), -1, 1)
-            q = mf.default_isaac + mf.action_scale * a    # radians, isaac order
-            await ws.send_nowait(P.set_joints(q[mf.i2d].tolist()))  # deploy order
-            prev = a
-            await asyncio.sleep(dt)
-    print(f"[robot] streamed {secs:.1f}s of set_joints over WiFi")
+    run, trig, speed_mps = _start_capture(capture, cmd_vec)
+    try:
+        async with WifiWs(host, port) as ws:
+            for _ in range(int(secs * hz)):
+                obs = _build_obs_isaac(mf, cmd, prev)
+                a = np.clip(policy.act(obs), -1, 1)
+                q = mf.default_isaac + mf.action_scale * a    # radians, isaac order
+                await ws.send_nowait(P.set_joints(q[mf.i2d].tolist()))  # deploy order
+                if trig:
+                    trig.update(speed_mps * dt)               # dead-reckon -> capture @ ~1cm
+                prev = a
+                await asyncio.sleep(dt)
+        print(f"[robot] streamed {secs:.1f}s of set_joints over WiFi")
+    finally:
+        if run:
+            run.close()
 
 
 if __name__ == "__main__":
@@ -239,27 +273,52 @@ if __name__ == "__main__":
     ap.add_argument("--sim", action="store_true")
     ap.add_argument("--no-remap", action="store_true",
                     help="sim negative control: skip the isaac<->deploy remap")
-    ap.add_argument("--robot", metavar="HOST", help="stream to robot (HOST for wifi)")
-    ap.add_argument("--transport", choices=["serial", "wifi"], default="serial")
-    ap.add_argument("--port", default="/dev/ttyUSB0",
-                    help="serial device, or WS port number for --transport wifi")
+    _robot_host = os.environ.get("ROBOTDOG_HOST", "robotdog.local")
+    ap.add_argument("--robot", metavar="HOST", nargs="?", const=_robot_host,
+                    help=f"stream to robot; bare --robot uses {_robot_host} (or $ROBOTDOG_HOST). "
+                         "Omit entirely to run --sim.")
+    ap.add_argument("--transport", choices=["serial", "wifi"], default="wifi",
+                    help="wifi (default, over the network) or serial (legacy robotdog8.ino USB)")
+    ap.add_argument("--port", default=None,
+                    help="WS port for wifi (default 80), or serial device for serial "
+                         "(default /dev/ttyUSB0)")
     ap.add_argument("--hz", type=int, default=50)
     ap.add_argument("--secs", type=float, default=5.0)
     ap.add_argument("--cmd", default="0.6,0,0", help="velocity command vx,vy,wz")
     ap.add_argument("--dry-run", action="store_true", help="print serial lines, no port")
     ap.add_argument("--on-exit", choices=["x", "r", "c"], default="x")
+    # --- gaussian-splatting photo capture (defaults shared with capture_coordinator) ---
+    import sys as _sys
+    _sys.path.insert(0, HERE)
+    from capture_coordinator import (DEFAULT_PHONE_URL, DEFAULT_ROOT,
+                                      DEFAULT_STEP_M, DEFAULT_MAX_SPEED_MPS)
+    ap.add_argument("--capture", action="store_true",
+                    help="pull a phone photo every --step-m of dead-reckoned travel")
+    ap.add_argument("--phone-url", default=DEFAULT_PHONE_URL,
+                    help="phone still URL (default: %(default)s; or set $PHONE_URL)")
+    ap.add_argument("--step-m", type=float, default=DEFAULT_STEP_M,
+                    help="capture interval (m); default 1cm")
+    ap.add_argument("--max-speed-mps", type=float, default=DEFAULT_MAX_SPEED_MPS,
+                    help="m/s at commanded vx=1.0 — CALIBRATE (open-loop estimate)")
+    ap.add_argument("--gs-root", default=DEFAULT_ROOT,
+                    help="photo root (default $GS_PHOTOS_ROOT or ~/robotdog/gaussian_splatting_photos)")
     a = ap.parse_args()
 
     mf = MetaFields(load_meta(a.meta))
     policy = Policy(a.onnx)
     cmd_vec = [float(x) for x in a.cmd.split(",")]
 
+    capture = None
+    if a.capture:
+        capture = {"phone_url": a.phone_url, "step_m": a.step_m,
+                   "max_speed_mps": a.max_speed_mps, "root": a.gs_root}
+
     if a.robot:
         if a.transport == "serial":
-            run_robot_serial(mf, policy, a.port, a.hz, a.secs, cmd_vec,
-                             a.dry_run, a.on_exit)
+            run_robot_serial(mf, policy, a.port or "/dev/ttyUSB0", a.hz, a.secs,
+                             cmd_vec, a.dry_run, a.on_exit, capture=capture)
         else:
-            asyncio.run(run_robot_wifi(mf, policy, a.robot, int(a.port), a.hz,
-                                       a.secs, cmd_vec))
+            asyncio.run(run_robot_wifi(mf, policy, a.robot, int(a.port or 80), a.hz,
+                                       a.secs, cmd_vec, capture=capture))
     else:
         run_sim(mf, policy, remap=not a.no_remap, cmd=cmd_vec)

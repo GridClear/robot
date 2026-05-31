@@ -14,18 +14,19 @@ import os
 
 import numpy as np
 
-DEFAULT_POSE = [0.0, 0.7, -1.4] * 4
+# 8-DOF, deploy/per-leg order: [abd, knee] x (FL, FR, RL, RR)
+DEFAULT_POSE = [0.45, 0.70] * 4
 ACTION_SCALE = 0.4
-OBS_DIM = 48
-ACT_DIM = 12
+OBS_DIM = 36   # 3+3+3+3 + 8+8+8
+ACT_DIM = 8
 JOINT_NAMES = [
-    "FL_hip", "FL_thigh", "FL_knee", "FR_hip", "FR_thigh", "FR_knee",
-    "RL_hip", "RL_thigh", "RL_knee", "RR_hip", "RR_thigh", "RR_knee",
+    "FL_abd", "FL_knee", "FR_abd", "FR_knee",
+    "RL_abd", "RL_knee", "RR_abd", "RR_knee",
 ]
 OBS_LAYOUT = [
     ["base_lin_vel", 3], ["base_ang_vel", 3], ["projected_gravity", 3],
-    ["velocity_cmd", 3], ["joint_pos_rel_default", 12], ["joint_vel", 12],
-    ["prev_action", 12],
+    ["velocity_cmd", 3], ["joint_pos_rel_default", 8], ["joint_vel", 8],
+    ["prev_action", 8],
 ]
 
 

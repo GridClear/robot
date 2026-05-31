@@ -9,11 +9,11 @@ Examples:
   robotctl joints 0 0.7 -1.4 0 0.7 -1.4 0 0.7 -1.4 0 0.7 -1.4
   robotctl photo --webhook http://host:8090/capture
   robotctl state
-  robotctl --host 192.168.4.1 stop
+  robotctl --host 10.10.52.30 stop  # or set ROBOTDOG_HOST; default robotdog.local
   robotctl --ble stand              # use Bluetooth LE instead of WiFi/HTTP
 
-Transports:
-  default        WiFi HTTP  (POST /cmd)
+Transports (no USB — commands go over the network to the ESP32):
+  default        WiFi HTTP  (POST /cmd), host defaults to robotdog.local (mDNS)
   --ws           WiFi WebSocket
   --ble          Bluetooth LE
 """
@@ -54,7 +54,7 @@ async def run_ble(a, cmd):
 
 def main():
     ap = argparse.ArgumentParser(description="Robot dog CLI")
-    ap.add_argument("--host", default=os.environ.get("ROBOTDOG_HOST", "192.168.4.1"))
+    ap.add_argument("--host", default=os.environ.get("ROBOTDOG_HOST", "robotdog.local"))
     ap.add_argument("--port", type=int, default=int(os.environ.get("ROBOTDOG_PORT", "80")))
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--ws", action="store_true", help="use WiFi WebSocket")

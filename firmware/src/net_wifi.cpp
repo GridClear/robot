@@ -3,6 +3,7 @@
 #include "protocol.h"
 #include "app.h"
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include <ESPAsyncWebServer.h>
 
 static AsyncWebServer server(HTTP_PORT);
@@ -32,6 +33,18 @@ void wifi_begin() {
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 8000) delay(200);
   // Always raise the fallback AP too, so the robot is reachable even off-network.
   WiFi.softAP(AP_SSID, AP_PASS);
+
+  // Print how to reach the command server. Prefer the STA (lab-network) address;
+  // the AP at 192.168.4.1 is always up as a fallback.
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("[wifi] STA '%s' -> http://%s/  (or http://%s.local/)\n",
+                  WIFI_SSID, WiFi.localIP().toString().c_str(), MDNS_HOST);
+  } else {
+    Serial.printf("[wifi] STA '%s' join FAILED; use AP '%s' at http://192.168.4.1/\n",
+                  WIFI_SSID, AP_SSID);
+  }
+  // mDNS: reachable at http://<MDNS_HOST>.local/ without knowing the DHCP IP.
+  if (MDNS.begin(MDNS_HOST)) MDNS.addService("http", "tcp", HTTP_PORT);
 
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
