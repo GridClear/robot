@@ -16,6 +16,7 @@
 //   w                 start walking (scripted trot gait)
 //   t <ch> <deg>      test: drive one channel to a raw angle (0..180)
 //   j <ch> <deg>      alias of t
+//   q d0 d1 .. d7     batch: set all 8 joint targets (abs degrees) — policy stream
 //   amp  <deg>        abduction swing amplitude
 //   kamp <deg>        knee swing amplitude
 //   freq <hz>         gait frequency
@@ -173,6 +174,18 @@ void handleLine(String s) {
       Serial.printf("ch%d -> %d deg\n", ch, deg);
     } else Serial.println(F("usage: t <ch 0-7> <deg 0-180>"));
   }
+  // Batch-joint command for streaming a policy: 8 ABSOLUTE servo degrees
+  // (ch0..7), mirror already applied by the host. No dir/center applied here;
+  // the existing slew + writeServo path drives them. Silent (no per-frame echo)
+  // so a 50 Hz stream doesn't flood the serial link.
+  else if (s.startsWith("q ")) {
+    float v[NSERVO];
+    if (sscanf(rest.c_str(), "%f %f %f %f %f %f %f %f",
+               &v[0],&v[1],&v[2],&v[3],&v[4],&v[5],&v[6],&v[7]) == NSERVO) {
+      walking=false; relaxed=false;
+      for (int i=0;i<NSERVO;i++) target[i]=clampf(v[i], cal[i].lo, cal[i].hi);
+    } else Serial.println(F("usage: q d0 d1 .. d7  (8 abs degrees)"));
+  }
   else if (s.startsWith("amp "))  { gAmpAbd=rest.toFloat();  Serial.printf("amp=%.1f\n",gAmpAbd); }
   else if (s.startsWith("kamp ")) { gAmpKnee=rest.toFloat(); Serial.printf("kamp=%.1f\n",gAmpKnee); }
   else if (s.startsWith("freq ")) { gFreq=rest.toFloat();    Serial.printf("freq=%.2f\n",gFreq); }
@@ -212,7 +225,7 @@ void setup() {
                            : F("no saved stand pose - using 90 deg centers"));
   Serial.println();
   Serial.println(F("robotdog8 ready (8 servos, ch0-7 = FL/FR/RL/RR abd+knee)."));
-  Serial.println(F("cmds: c center | t <ch> <deg> | s stand | w walk | x stop | r relax | dump | save | loadcal | rstcal"));
+  Serial.println(F("cmds: c center | t <ch> <deg> | q d0..d7 | s stand | w walk | x stop | r relax | dump | save | loadcal | rstcal"));
 }
 
 void loop() {

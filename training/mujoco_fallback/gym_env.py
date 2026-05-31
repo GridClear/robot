@@ -25,10 +25,11 @@ except ImportError:  # allow import without gym for static checks
 import mujoco
 
 XML = os.path.join(os.path.dirname(__file__), "..", "..", "model", "robot_dog.xml")
-DEFAULT_POSE = np.array([0.0, 0.7, -1.4] * 4, dtype=np.float32)
+# 8-DOF, per-leg order (MJCF): [abd, knee] x (FL, FR, RL, RR)
+DEFAULT_POSE = np.array([0.45, 0.70] * 4, dtype=np.float32)
 ACTION_SCALE = 0.4
-OBS_DIM = 3 + 3 + 3 + 3 + 12 + 12 + 12   # 48
-ACT_DIM = 12
+OBS_DIM = 3 + 3 + 3 + 3 + 8 + 8 + 8   # 36
+ACT_DIM = 8
 
 
 class QuadrupedEnv(gym.Env if gym else object):
@@ -58,15 +59,19 @@ class QuadrupedEnv(gym.Env if gym else object):
         lin = d.qvel[0:3].astype(np.float32)
         ang = d.qvel[3:6].astype(np.float32)
         grav = self._proj_gravity().astype(np.float32)
-        q = d.qpos[7:7 + 12].astype(np.float32)
-        qd = d.qvel[6:6 + 12].astype(np.float32)
+        q = d.qpos[7:7 + ACT_DIM].astype(np.float32)
+        qd = d.qvel[6:6 + ACT_DIM].astype(np.float32)
         return np.concatenate([lin, ang, grav, self.cmd, q - DEFAULT_POSE, qd, self.prev_action])
 
     def reset(self, *, seed=None, options=None):
         if gym:
             super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
-        self.data.qpos[7:7 + 12] = DEFAULT_POSE
+        # spawn near the natural sprawled stance (~0.07 m) so there is no large
+        # free-fall transient; the XML default (0.19 m) drops ~12 cm and trips the
+        # height termination before the policy acts.
+        self.data.qpos[2] = 0.09
+        self.data.qpos[7:7 + ACT_DIM] = DEFAULT_POSE
         self.data.ctrl[:] = DEFAULT_POSE
         mujoco.mj_forward(self.model, self.data)
         self.prev_action[:] = 0
@@ -77,8 +82,8 @@ class QuadrupedEnv(gym.Env if gym else object):
         action = np.clip(action, -1.0, 1.0).astype(np.float32)
         target = DEFAULT_POSE + ACTION_SCALE * action
         # respect joint ranges
-        lo = self.model.jnt_range[1:13, 0]
-        hi = self.model.jnt_range[1:13, 1]
+        lo = self.model.jnt_range[1:1 + ACT_DIM, 0]
+        hi = self.model.jnt_range[1:1 + ACT_DIM, 1]
         self.data.ctrl[:] = np.clip(target, lo, hi)
         for _ in range(self.sim_steps):
             mujoco.mj_step(self.model, self.data)
@@ -97,7 +102,9 @@ class QuadrupedEnv(gym.Env if gym else object):
         self.prev_action[:] = action
         self._step += 1
 
-        fell = upright < 0.5 or height < 0.06
+        # this is a low, sprawled quadruped (~0.05-0.07 m trunk); 0.04 m leaves
+        # margin below the natural stance without calling a low stance a fall.
+        fell = upright < 0.5 or height < 0.04
         terminated = bool(fell)
         truncated = self._step >= self.max_steps
         if fell:

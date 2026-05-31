@@ -1,32 +1,43 @@
 {
-  "source": "Isaac Lab RSL-RL PPO, task Isaac-Velocity-Flat-RobotDog-v0, 1500 iters, GB10",
-  "checkpoint": "robot_dog_flat/2026-05-30_01-09-54/model_1499.pt",
+  "source": "Isaac Lab RSL-RL PPO, task Isaac-Velocity-Flat-RobotDog-v0 (8-DOF), 1500 iters, GB10 (seed 42)",
+  "checkpoint": "robot_dog_flat/2026-05-30_17-02-54/model_1499.pt",
+  "retrain_note": "Fresh 1500-iter run 2026-05-30_17-02-54 reproduced the prior run 2026-05-30_03-53-39 bit-for-bit (md5-identical model_1499.pt) — deterministic training with fixed seed 42. mean reward ~41.6.",
   "onnx": "policy_isaac.onnx",
+  "dof": 8,
+  "morphology": "4 legs x (abduction + knee); right-side abduction axis mirrored",
   "verified": {
     "sim": "isaaclab",
     "steps": 400, "num_envs": 64,
-    "cmd_vx": 0.170, "act_vx": 0.160, "track_err_mps": 0.039,
-    "mean_trunk_height_m": 0.111, "terminations": 0,
-    "note": "tracks commanded base velocity within 0.04 m/s, never fell"
+    "cmd_vx": 0.170, "act_vx": 0.155, "track_err_mps": 0.078,
+    "mean_trunk_height_m": 0.052, "terminations": 0,
+    "note": "tracks commanded base velocity within ~0.08 m/s, never fell over 400 steps x 64 envs"
+  },
+  "deploy_confirmed": {
+    "sim": "mujoco_closed_loop (control/runtime/policy_runner.py --sim)",
+    "with_remap": "1000 steps, 0 terminations, forward +31cm @cmd0.17 / +34cm @cmd0.30, mean_upright 0.99",
+    "negative_control_no_remap": "falls at step 7 — confirms the isaac<->deploy joint remap is correct and load-bearing",
+    "hardware": "60 q-frames streamed to robotdog8.ino over serial @~18Hz; all frames parsed, servos tracked final pose (transport+framing validated; gait quality pending IMU)"
   },
 
-  "obs_dim": 48, "act_dim": 12,
+  "obs_dim": 36, "act_dim": 8,
   "obs_layout": [
     ["base_lin_vel", 3], ["base_ang_vel", 3], ["projected_gravity", 3],
-    ["velocity_cmd", 3], ["joint_pos_rel_default", 12], ["joint_vel", 12],
-    ["prev_action", 12]
+    ["velocity_cmd", 3], ["joint_pos_rel_default", 8], ["joint_vel", 8],
+    ["prev_action", 8]
   ],
-  "obs_frame_note": "base_lin_vel/base_ang_vel are in the ROBOT BASE frame (not world). On hardware, get these from an IMU expressed in the base frame. projected_gravity = gravity unit vector rotated into the base frame.",
+  "obs_frame_note": "base_lin_vel/base_ang_vel are in the ROBOT BASE frame; projected_gravity is gravity rotated into the base frame. On hardware, supply these from an IMU.",
   "empirical_normalization": false,
 
   "action_is_position_delta": true,
   "action_scale": 0.4,
-  "default_joint_pos_isaac_order": [0.0, 0.0, 0.0, 0.0, 0.7, 0.7, 0.7, 0.7, -1.4, -1.4, -1.4, -1.4],
   "control_hz": 50,
 
-  "joint_order_isaac": ["FL_hip", "FR_hip", "RL_hip", "RR_hip", "FL_thigh", "FR_thigh", "RL_thigh", "RR_thigh", "FL_knee", "FR_knee", "RL_knee", "RR_knee"],
-  "joint_order_deploy": ["FL_hip", "FL_thigh", "FL_knee", "FR_hip", "FR_thigh", "FR_knee", "RL_hip", "RL_thigh", "RL_knee", "RR_hip", "RR_thigh", "RR_knee"],
-  "isaac_to_deploy_index": [0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11],
-  "deploy_to_isaac_index": [0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11],
-  "remap_note": "ONNX obs joint sub-vectors (joint_pos_rel, joint_vel, prev_action) must be supplied in joint_order_isaac; the 12 action outputs are also in joint_order_isaac. To send to the ESP32 (servo_map.json channel order = joint_order_deploy), reorder: deploy[k] = isaac[isaac_to_deploy_index[k]]. To build the obs joint sub-vectors from per-leg/servo-order state: isaac[k] = deploy[deploy_to_isaac_index[k]]."
+  "joint_order_isaac": ["FL_abd", "FR_abd", "RL_abd", "RR_abd", "FL_knee", "FR_knee", "RL_knee", "RR_knee"],
+  "default_joint_pos_isaac_order": [0.45, 0.45, 0.45, 0.45, 0.70, 0.70, 0.70, 0.70],
+  "joint_order_deploy": ["FL_abd", "FL_knee", "FR_abd", "FR_knee", "RL_abd", "RL_knee", "RR_abd", "RR_knee"],
+  "default_joint_pos_deploy_order": [0.45, 0.70, 0.45, 0.70, 0.45, 0.70, 0.45, 0.70],
+
+  "isaac_to_deploy_index": [0, 4, 1, 5, 2, 6, 3, 7],
+  "deploy_to_isaac_index": [0, 2, 4, 6, 1, 3, 5, 7],
+  "remap_note": "ONNX obs joint sub-vectors and the 8 action outputs are in joint_order_isaac (type-grouped). To send to the ESP32 (servo_map channel order = joint_order_deploy / robotdog8.ino ch0-7): deploy[k] = isaac[isaac_to_deploy_index[k]]. To build obs joint sub-vectors from per-leg/servo state: isaac[k] = deploy[deploy_to_isaac_index[k]]. Right-side abduction is axis-mirrored in the model; the hardware also mirrors via servo dir (-1 on FR/RR) in robotdog8.ino."
 }
