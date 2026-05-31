@@ -1,7 +1,7 @@
 {
-  "source": "Isaac Lab RSL-RL PPO, task Isaac-Velocity-Flat-RobotDog-v0 (8-DOF), 1500 iters, GB10 (seed 42)",
-  "checkpoint": "robot_dog_flat/2026-05-30_17-02-54/model_1499.pt",
-  "retrain_note": "Fresh 1500-iter run 2026-05-30_17-02-54 reproduced the prior run 2026-05-30_03-53-39 bit-for-bit (md5-identical model_1499.pt) — deterministic training with fixed seed 42. mean reward ~41.6.",
+  "source": "Isaac Lab RSL-RL PPO, task Isaac-Velocity-Flat-RobotDog-v0 (8-DOF), 1500 iters, GB10 (seed 42), REALISTIC PHYSICS (0.7kg, 0.2 N*m MG90S servos)",
+  "checkpoint": "robot_dog_flat/2026-05-30_20-33-49/model_1499.pt",
+  "physics_note": "Trained on corrected physics (mass 2.1->0.7kg, servo effort 2.0->0.2 N*m). mean reward 27.7 (vs 41.6 on the old over-torqued model). The robot is UNDERPOWERED at realistic torque: it learns a timid, stable crawl (dof_torques~0) rather than brisk walking. MuJoCo: stays upright 1000 steps but only ~0.1 cm/s forward at cmd 0.17. This matches the real robot's slow shuffle — the sim now reflects reality. Brisk RL walking would need stronger servos or closed-loop sensing.",
   "onnx": "policy_isaac.onnx",
   "dof": 8,
   "morphology": "4 legs x (abduction + knee); right-side abduction axis mirrored",
