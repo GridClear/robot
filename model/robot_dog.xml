@@ -6,7 +6,7 @@
     <joint armature="0.01" damping="0.3"/>
     <geom rgba="0.4 0.4 0.45 1" friction="1 0.1 0.1"/>
     <default class="srv">
-      <position kp="8" forcerange="-2.5 2.5"/>
+      <position kp="8" forcerange="-0.2 0.2"/>
     </default>
   </default>
   <asset>
@@ -16,75 +16,55 @@
   <worldbody>
     <light pos="0 0 2" dir="0 0 -1" diffuse="0.8 0.8 0.8"/>
     <geom name="floor" type="plane" size="5 5 0.1" material="grid" condim="3"/>
-    <body name="trunk" pos="0 0 0.27">
+    <body name="trunk" pos="0 0 0.19">
       <freejoint name="root"/>
-      <geom type="box" size="0.15 0.06 0.03" mass="1.2" rgba="0.2 0.4 0.8 1"/>
+      <geom type="box" size="0.15 0.06 0.03" mass="0.5" rgba="0.2 0.4 0.8 1"/>
       <body name="FL_hip_link" pos="0.12 0.06 0">
-        <joint name="FL_hip" axis="1 0 0" range="-0.8 0.8"/>
-        <geom type="cylinder" fromto="0 0 0 0 0.04 0" size="0.018" mass="0.1"/>
-        <body name="FL_thigh" pos="0 0.04 0">
-          <joint name="FL_thigh" axis="0 1 0" range="-1.6 1.6"/>
-          <geom type="cylinder" fromto="0 0 0 0 0 -0.11" size="0.014" mass="0.12"/>
-          <body name="FL_shank" pos="0 0 -0.11">
-            <joint name="FL_knee" axis="0 1 0" range="-2.6 -0.2"/>
-            <geom type="cylinder" fromto="0 0 0 0 0 -0.12" size="0.012" mass="0.08"/>
-            <geom type="sphere" pos="0 0 -0.12" size="0.016" mass="0.02" rgba="0.1 0.1 0.1 1"/>
-          </body>
+        <joint name="FL_abd" axis="1.0 0 0" range="-1.0 1.0"/>
+        <geom type="cylinder" fromto="0 0 0 0 0.05 0" size="0.018" mass="0.03"/>
+        <body name="FL_shank" pos="0 0.05 0">
+          <joint name="FL_knee" axis="0 1 0" range="-1.5 1.5"/>
+          <geom type="cylinder" fromto="0 0 0 0 0 -0.13" size="0.013" mass="0.015" rgba="0.2 0.7 0.3 1"/>
+          <geom type="sphere" pos="0 0 -0.13" size="0.016" mass="0.005" rgba="0.1 0.1 0.1 1"/>
         </body>
       </body>
       <body name="FR_hip_link" pos="0.12 -0.06 0">
-        <joint name="FR_hip" axis="1 0 0" range="-0.8 0.8"/>
-        <geom type="cylinder" fromto="0 0 0 0 -0.04 0" size="0.018" mass="0.1"/>
-        <body name="FR_thigh" pos="0 -0.04 0">
-          <joint name="FR_thigh" axis="0 1 0" range="-1.6 1.6"/>
-          <geom type="cylinder" fromto="0 0 0 0 0 -0.11" size="0.014" mass="0.12"/>
-          <body name="FR_shank" pos="0 0 -0.11">
-            <joint name="FR_knee" axis="0 1 0" range="-2.6 -0.2"/>
-            <geom type="cylinder" fromto="0 0 0 0 0 -0.12" size="0.012" mass="0.08"/>
-            <geom type="sphere" pos="0 0 -0.12" size="0.016" mass="0.02" rgba="0.1 0.1 0.1 1"/>
-          </body>
+        <joint name="FR_abd" axis="-1.0 0 0" range="-1.0 1.0"/>
+        <geom type="cylinder" fromto="0 0 0 0 -0.05 0" size="0.018" mass="0.03"/>
+        <body name="FR_shank" pos="0 -0.05 0">
+          <joint name="FR_knee" axis="0 1 0" range="-1.5 1.5"/>
+          <geom type="cylinder" fromto="0 0 0 0 0 -0.13" size="0.013" mass="0.015" rgba="0.2 0.7 0.3 1"/>
+          <geom type="sphere" pos="0 0 -0.13" size="0.016" mass="0.005" rgba="0.1 0.1 0.1 1"/>
         </body>
       </body>
       <body name="RL_hip_link" pos="-0.12 0.06 0">
-        <joint name="RL_hip" axis="1 0 0" range="-0.8 0.8"/>
-        <geom type="cylinder" fromto="0 0 0 0 0.04 0" size="0.018" mass="0.1"/>
-        <body name="RL_thigh" pos="0 0.04 0">
-          <joint name="RL_thigh" axis="0 1 0" range="-1.6 1.6"/>
-          <geom type="cylinder" fromto="0 0 0 0 0 -0.11" size="0.014" mass="0.12"/>
-          <body name="RL_shank" pos="0 0 -0.11">
-            <joint name="RL_knee" axis="0 1 0" range="-2.6 -0.2"/>
-            <geom type="cylinder" fromto="0 0 0 0 0 -0.12" size="0.012" mass="0.08"/>
-            <geom type="sphere" pos="0 0 -0.12" size="0.016" mass="0.02" rgba="0.1 0.1 0.1 1"/>
-          </body>
+        <joint name="RL_abd" axis="1.0 0 0" range="-1.0 1.0"/>
+        <geom type="cylinder" fromto="0 0 0 0 0.05 0" size="0.018" mass="0.03"/>
+        <body name="RL_shank" pos="0 0.05 0">
+          <joint name="RL_knee" axis="0 1 0" range="-1.5 1.5"/>
+          <geom type="cylinder" fromto="0 0 0 0 0 -0.13" size="0.013" mass="0.015" rgba="0.2 0.7 0.3 1"/>
+          <geom type="sphere" pos="0 0 -0.13" size="0.016" mass="0.005" rgba="0.1 0.1 0.1 1"/>
         </body>
       </body>
       <body name="RR_hip_link" pos="-0.12 -0.06 0">
-        <joint name="RR_hip" axis="1 0 0" range="-0.8 0.8"/>
-        <geom type="cylinder" fromto="0 0 0 0 -0.04 0" size="0.018" mass="0.1"/>
-        <body name="RR_thigh" pos="0 -0.04 0">
-          <joint name="RR_thigh" axis="0 1 0" range="-1.6 1.6"/>
-          <geom type="cylinder" fromto="0 0 0 0 0 -0.11" size="0.014" mass="0.12"/>
-          <body name="RR_shank" pos="0 0 -0.11">
-            <joint name="RR_knee" axis="0 1 0" range="-2.6 -0.2"/>
-            <geom type="cylinder" fromto="0 0 0 0 0 -0.12" size="0.012" mass="0.08"/>
-            <geom type="sphere" pos="0 0 -0.12" size="0.016" mass="0.02" rgba="0.1 0.1 0.1 1"/>
-          </body>
+        <joint name="RR_abd" axis="-1.0 0 0" range="-1.0 1.0"/>
+        <geom type="cylinder" fromto="0 0 0 0 -0.05 0" size="0.018" mass="0.03"/>
+        <body name="RR_shank" pos="0 -0.05 0">
+          <joint name="RR_knee" axis="0 1 0" range="-1.5 1.5"/>
+          <geom type="cylinder" fromto="0 0 0 0 0 -0.13" size="0.013" mass="0.015" rgba="0.2 0.7 0.3 1"/>
+          <geom type="sphere" pos="0 0 -0.13" size="0.016" mass="0.005" rgba="0.1 0.1 0.1 1"/>
         </body>
       </body>
     </body>
   </worldbody>
   <actuator>
-    <position class="srv" name="FL_hip_act" joint="FL_hip" ctrlrange="-0.8 0.8"/>
-    <position class="srv" name="FL_thigh_act" joint="FL_thigh" ctrlrange="-1.6 1.6"/>
-    <position class="srv" name="FL_knee_act" joint="FL_knee" ctrlrange="-2.6 -0.2"/>
-    <position class="srv" name="FR_hip_act" joint="FR_hip" ctrlrange="-0.8 0.8"/>
-    <position class="srv" name="FR_thigh_act" joint="FR_thigh" ctrlrange="-1.6 1.6"/>
-    <position class="srv" name="FR_knee_act" joint="FR_knee" ctrlrange="-2.6 -0.2"/>
-    <position class="srv" name="RL_hip_act" joint="RL_hip" ctrlrange="-0.8 0.8"/>
-    <position class="srv" name="RL_thigh_act" joint="RL_thigh" ctrlrange="-1.6 1.6"/>
-    <position class="srv" name="RL_knee_act" joint="RL_knee" ctrlrange="-2.6 -0.2"/>
-    <position class="srv" name="RR_hip_act" joint="RR_hip" ctrlrange="-0.8 0.8"/>
-    <position class="srv" name="RR_thigh_act" joint="RR_thigh" ctrlrange="-1.6 1.6"/>
-    <position class="srv" name="RR_knee_act" joint="RR_knee" ctrlrange="-2.6 -0.2"/>
+    <position class="srv" name="FL_abd_act" joint="FL_abd" ctrlrange="-1.0 1.0"/>
+    <position class="srv" name="FL_knee_act" joint="FL_knee" ctrlrange="-1.5 1.5"/>
+    <position class="srv" name="FR_abd_act" joint="FR_abd" ctrlrange="-1.0 1.0"/>
+    <position class="srv" name="FR_knee_act" joint="FR_knee" ctrlrange="-1.5 1.5"/>
+    <position class="srv" name="RL_abd_act" joint="RL_abd" ctrlrange="-1.0 1.0"/>
+    <position class="srv" name="RL_knee_act" joint="RL_knee" ctrlrange="-1.5 1.5"/>
+    <position class="srv" name="RR_abd_act" joint="RR_abd" ctrlrange="-1.0 1.0"/>
+    <position class="srv" name="RR_knee_act" joint="RR_knee" ctrlrange="-1.5 1.5"/>
   </actuator>
 </mujoco>

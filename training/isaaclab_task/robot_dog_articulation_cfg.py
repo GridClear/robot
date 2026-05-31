@@ -13,9 +13,8 @@ from isaaclab.assets import ArticulationCfg
 _URDF = os.path.join(os.path.dirname(__file__), "..", "..", "model", "robot_dog.urdf")
 
 DEFAULT_JOINT_POS = {
-    ".*_hip": 0.0,
-    ".*_thigh": 0.7,
-    ".*_knee": -1.4,
+    ".*_abd": 0.45,    # sprawled splay (abduction axis mirrored per side in the URDF)
+    ".*_knee": 0.7,    # bent to plant the foot
 }
 
 ROBOT_DOG_CFG = ArticulationCfg(
@@ -35,14 +34,15 @@ ROBOT_DOG_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.25),
+        pos=(0.0, 0.0, 0.18),
         joint_pos=DEFAULT_JOINT_POS,
         joint_vel={".*": 0.0},
     ),
     actuators={
         "legs": ImplicitActuatorCfg(
-            joint_names_expr=[".*_hip", ".*_thigh", ".*_knee"],
-            effort_limit=2.0, velocity_limit=8.0,
+            joint_names_expr=[".*_abd", ".*_knee"],
+            # MG90S-class micro servos: ~0.2 N*m stall, ~6 rad/s loaded
+            effort_limit=0.20, velocity_limit=6.0,
             stiffness=8.0, damping=0.3,
         ),
     },
